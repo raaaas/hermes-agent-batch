@@ -1,0 +1,3 @@
+name: agent-batch
+version: 1.0.0
+description: Parallel AI task orchestrator — phase tasks, dispatch GitHub Actions agents, track PRs
