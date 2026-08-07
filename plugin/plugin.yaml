@@ -1,0 +1,3 @@
+name: agent-batch
+version: 1.0.0
+description: Nightly parallel-agent CI — Hermes plans phases, GitHub Actions runs N agents in parallel, results land as PRs
