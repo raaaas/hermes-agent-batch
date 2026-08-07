@@ -43,7 +43,7 @@ jobs:
         run: |
           TASKS="${{ github.event.inputs.tasks }}"
           CTX="${{ github.event.inputs.context }}"
-          python3 - "$TASKS" "$CTX" <<'PYEOF'
+          python3 - "$TASKS" "$CTX" <<'PYEOF' > /tmp/matrix.json
           import json, sys, hashlib
           raw, ctx = sys.argv[1], sys.argv[2]
           tasks = [t.strip() for t in raw.splitlines() if t.strip() and not t.strip().startswith('#')]
@@ -51,8 +51,10 @@ jobs:
           for i, t in enumerate(tasks, 1):
               h = hashlib.md5(t.encode()).hexdigest()[:6]
               arr.append({"task": t, "idx": str(i), "branch": f"agent-{i:02d}-{h}", "context": ctx})
-          print(f"matrix={json.dumps(arr)}")
+          print(json.dumps(arr))
           PYEOF
+          echo "matrix=$(cat /tmp/matrix.json)" >> "$GITHUB_OUTPUT"
+          cat /tmp/matrix.json
 
   agent:
     needs: prepare
