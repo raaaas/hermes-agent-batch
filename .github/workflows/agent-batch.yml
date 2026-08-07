@@ -44,7 +44,7 @@ jobs:
         id: build
         run: |
           TASKS="${{ github.event.inputs.tasks }}"
-          python3 - "$TASKS" <<'PYEOF'
+          python3 - "$TASKS" <<'PYEOF' >> "$GITHUB_OUTPUT"
           import json, sys, hashlib
           raw = sys.argv[1]
           tasks = [t.strip() for t in raw.splitlines() if t.strip() and not t.strip().startswith('#')]
