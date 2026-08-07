@@ -1,0 +1,32 @@
+name: Matrix Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      tasks:
+        description: Tasks
+        required: true
+        type: string
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.build.outputs.matrix }}
+    steps:
+      - name: Build matrix
+        id: build
+        run: |
+          echo "matrix=[{\"task\": \"add a file\", \"idx\": \"1\", \"branch\": \"agent-01-test\"}]" >> "$GITHUB_OUTPUT"
+
+  agent:
+    needs: prepare
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.prepare.outputs.matrix) }}
+    steps:
+      - name: Show
+        run: |
+          echo "task=${{ matrix.task }} branch=${{ matrix.branch }}"
