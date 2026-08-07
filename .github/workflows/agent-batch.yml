@@ -79,7 +79,8 @@ jobs:
         run: |
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.opencode/bin" >> "$GITHUB_PATH"
-          opencode --version
+          # PATH is exported for the NEXT step; verify with the full path here
+          "$HOME/.opencode/bin/opencode" --version
 
       - name: Run agent on task
         env:
