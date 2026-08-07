@@ -107,7 +107,9 @@ jobs:
       - name: Open PR
         if: steps.commit.outputs.committed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          # github.token can't create PRs ("Actions is not permitted");
+          # use a PAT with repo+workflow scopes instead.
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           gh pr create \
             --base ${{ github.event.inputs.base_branch }} \
