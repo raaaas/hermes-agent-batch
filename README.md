@@ -33,7 +33,9 @@ context, and no merge conflicts with its siblings — until the PRs land.
 ## Repo layout
 
 ```
-.github/workflows/agent-batch.yml   # the parallel agent workflow
+.github/workflows/agent-batch.yml   # the parallel agent workflow (nightly/on-demand batch)
+.github/workflows/agent-issues.yml  # the gitclaw-style issue agent (issue → branch → PR)
+lifecycle/agent.py                  # issue-agent brain: session memory, runner, PR, comment, panel log
 plugin/
   plugin.yaml                       # hermes plugin manifest (enable gate)
   dashboard/manifest.json           # backend manifest
@@ -71,6 +73,57 @@ docs/setup.md                       # step-by-step installation
 5. **Track** — plugin polls GitHub: workflow runs + open PRs.
 6. **Next phase** — once a phase's PRs are reviewed/merged, the next phase
    dispatches with updated context.
+
+## Issue-driven mode (gitclaw-style) — open an issue, get a PR
+
+Modeled on [SawyerHood/gitclaw](https://github.com/SawyerHood/gitclaw): the repo
+runs its own issue agent with no servers, no extra infra — just GitHub Issues +
+Actions.
+
+- **Open an issue** → the agent starts, works on branch `agent/issue-<N>`,
+  opens a PR, and replies as an issue comment with a summary + PR link.
+- **Comment on the issue** → the agent **resumes the same session**: the
+  conversation lives in `state/issues/<N>.json`, committed to git, so every
+  comment continues where the last run left off (long-term memory).
+- 👀 while working, ✅ when done. Bot comments never trigger.
+- **Security**: only repo OWNER / MEMBER / COLLABORATOR can trigger. Public
+  repo = the issue thread (and its state) is public — use a private repo for
+  private work.
+
+### Setup
+
+1. Copy `.github/workflows/agent-issues.yml` + the `lifecycle/` folder into the
+   target repo (this repo already ships both).
+2. Add the model/runner secret your agent needs:
+   - opencode → `OPENCODE_API_KEY`
+   - claude-code → `ANTHROPIC_API_KEY`
+   - codex → `OPENROUTER_API_KEY` (or any provider key codex supports)
+3. Optional repo variables:
+   - `AGENT_BATCH_RUNNER` — `opencode` (default) | `claude-code` | `codex`
+   - `AGENT_BATCH_MODEL` — e.g. `opencode/mimo-v2.5-free`
+4. Optional: `PM_PANEL_URL` secret (e.g. `https://panel.example.com`) — every
+   run is POSTed to `<url>/api/agent-batch/log` so the Hermes project-manager
+   panel (🤖 Agent Batch view) shows what the GitHub side did. Skipped silently
+   when unset.
+
+### How it works
+
+```
+issue opened / comment created
+  → guard: owner/member/collaborator only
+  → 👀 reaction
+  → checkout agent/issue-<N> (resume) or fork from default branch (new)
+  → load state/issues/<N>.json (prior turns)
+  → run $RUNNER with history + new instruction
+  → append turn to state/issues/<N>.json, commit everything, push
+  → open PR if none exists yet
+  → comment on the issue (summary + PR link) + ✅ reaction
+  → POST run log to PM_PANEL_URL (optional)
+```
+
+The existing nightly batch (`agent-batch.yml`) is untouched — both modes can
+run side by side: the batch dispatches N parallel agents on demand, the issue
+agent reacts to GitHub issues one session at a time.
 
 ## Model options (free tier)
 

@@ -1,0 +1,62 @@
+name: Issue Agent — gitclaw-style
+
+# gitclaw-style issue-driven agent (modeled on SawyerHood/gitclaw):
+#   - opening an issue starts an agent run
+#   - commenting on the issue resumes the SAME session (memory lives in
+#     state/issues/<N>.json committed to git)
+#   - the agent works on branch agent/issue-<N> → opens a PR
+#   - replies as an issue comment with a summary + PR link
+#   - runner is pluggable via repo variable AGENT_BATCH_RUNNER:
+#     opencode (default) | claude-code | codex
+#   - optionally logs the run to the Hermes project-manager panel via the
+#     PM_PANEL_URL secret (skipped silently when unset)
+# Security: only repo OWNER / MEMBER / COLLABORATOR can trigger (same as
+# gitclaw); bot comments never trigger. For private repos no extra exposure.
+
+on:
+  issues:
+    types: [opened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    if: >-
+      (
+        github.event_name == 'issues' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.comment.user.login != 'github-actions[bot]' &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+      )
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run agent
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNNER: ${{ vars.AGENT_BATCH_RUNNER }}
+          MODEL: ${{ vars.AGENT_BATCH_MODEL }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          PM_PANEL_URL: ${{ secrets.PM_PANEL_URL }}
+        run: python3 lifecycle/agent.py
+        timeout-minutes: 40
