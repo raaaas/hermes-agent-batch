@@ -165,7 +165,7 @@ def build_prompt(history: list[dict]) -> str:
 # ---------------------------------------------------------------- runner
 def install_runner() -> None:
     pkgs = {
-        "opencode": "opencode-ai",
+        "opencode": "opencode-ai@1.18.12",  # pinned: validated against kilo keyless direct (1.18.12); latest npm can hang/change json output
         "claude-code": "@anthropic-ai/claude-code",
         "codex": "@openai/codex",
     }
@@ -176,8 +176,16 @@ def install_runner() -> None:
         raise RuntimeError(f"failed to install {pkgs[RUNNER]}: {r.stderr[-500:]}")
 
 
-def _extract_opencode_answer(stdout: str) -> str:
-    """Last assistant text from `opencode run --format json` output (gitclaw-style)."""
+def _extract_opencode_answer(stdout) -> str:
+    """Last assistant text from `opencode run --format json` output (gitclaw-style).
+
+    Defensive: stdout can be None (killed subprocess) or bytes (some opencode
+    builds / timeout paths) — normalize before parsing.
+    """
+    if stdout is None:
+        return ""
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode("utf-8", errors="replace")
     parts: list[str] = []
     for line in reversed(stdout.splitlines()):
         line = line.strip()
@@ -205,10 +213,13 @@ def run_agent(prompt: str) -> str:
         cmd = ["opencode", "run", "--format", "json", prompt]
         if MODEL:
             cmd += ["--model", MODEL]
-        r = run(cmd, timeout=1500)
+        r = run(cmd, timeout=2400)  # step timeout is 40min; give the agent ~38min
         answer = _extract_opencode_answer(r.stdout)
         if not answer:
-            answer = r.stdout.strip()[-8000:]
+            tail = r.stdout or ""
+            if isinstance(tail, bytes):
+                tail = tail.decode("utf-8", errors="replace")
+            answer = tail[-8000:]
     elif RUNNER == "claude-code":
         cmd = ["claude", "-p", prompt, "--output-format", "text", "--dangerously-skip-permissions"]
         if MODEL:
