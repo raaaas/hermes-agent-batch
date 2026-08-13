@@ -234,29 +234,61 @@ def _is_usable_answer(text: str) -> bool:
     return True
 
 
+def _run_opencode_once(prompt: str) -> str:
+    """One opencode run; returns the answer text (never raises)."""
+    # --auto: required, otherwise opencode auto-REJECTS every file write
+    # in non-interactive mode ("The user rejected permission to use this
+    # specific tool call") and the run exits 0 with NOTHING created.
+    # --print-logs: opencode internals go to stderr, surfaced in the log.
+    import time
+    cmd = ["opencode", "run", "--auto", "--print-logs", "--format", "json", prompt]
+    if MODEL:
+        cmd += ["--model", MODEL]
+    t0 = time.monotonic()
+    r = run(cmd, timeout=6000)  # agent tasks with free kilo models are slow; step allows ~140min
+    elapsed = int(time.monotonic() - t0)
+    err_tail = (r.stderr or "") if isinstance(r.stderr, str) else str(r.stderr or "")
+    log(f"opencode exit={r.returncode} after {elapsed}s; stderr tail: {err_tail[-800:]}")
+    answer = _extract_opencode_answer(r.stdout)
+    if not answer:
+        tail = r.stdout or ""
+        if isinstance(tail, bytes):
+            tail = tail.decode("utf-8", errors="replace")
+        answer = tail[-8000:]
+    if not _is_usable_answer(answer):
+        answer = "(agent produced no usable text output — see Actions run log)"
+    return answer
+
+
+def _project_changed(head_before: str) -> bool:
+    """True if the agent touched anything outside state/ (committed or not)."""
+    head_after = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    if head_after and head_after != head_before:
+        return True
+    status = run(["git", "status", "--porcelain"]).stdout
+    for line in status.splitlines():
+        if line and "state/" not in line:
+            return True
+    return False
+
+
 def run_agent(prompt: str) -> str:
     """Run the chosen agent; returns its final answer text."""
     if RUNNER == "opencode":
-        # --auto: required, otherwise opencode auto-REJECTS every file write
-        # in non-interactive mode ("The user rejected permission to use this
-        # specific tool call") and the run exits 0 with NOTHING created.
-        # --print-logs: opencode internals go to stderr, surfaced below when
-        # the run produces no usable answer.
-        cmd = ["opencode", "run", "--auto", "--print-logs", "--format", "json", prompt]
-        if MODEL:
-            cmd += ["--model", MODEL]
-        r = run(cmd, timeout=6000)  # agent tasks with free kilo models are slow; step allows ~140min
-        answer = _extract_opencode_answer(r.stdout)
-        if not answer:
-            tail = r.stdout or ""
-            if isinstance(tail, bytes):
-                tail = tail.decode("utf-8", errors="replace")
-            answer = tail[-8000:]
-        if not _is_usable_answer(answer):
-            err_tail = (r.stderr or "") if isinstance(r.stderr, str) else str(r.stderr or "")
-            log(f"opencode exit={r.returncode}, stderr tail: {err_tail[-1500:]}")
-            answer = "(agent produced no usable text output — see Actions run log)"
-    elif RUNNER == "claude-code":
+        head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        answer = _run_opencode_once(prompt)
+        if _project_changed(head_before):
+            return answer
+        # Free kilo from a shared GitHub runner IP can die mid-task (quota /
+        # hangs) with zero output. Re-run once — a fresh runner IP often lands
+        # on a healthy bucket.
+        log("no project changes after run 1 — re-running the agent once")
+        head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+        answer2 = _run_opencode_once(prompt)
+        if not _is_usable_answer(answer2) and _is_usable_answer(answer):
+            return answer
+        return answer2
+    if RUNNER == "claude-code":
         cmd = ["claude", "-p", prompt, "--output-format", "text", "--dangerously-skip-permissions"]
         if MODEL:
             cmd += ["--model", MODEL]
