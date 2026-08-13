@@ -185,11 +185,12 @@ def build_prompt(history: list[dict]) -> str:
 def install_runner() -> None:
     pkgs = {
         "opencode": "opencode-ai@1.18.12",  # pinned: validated against kilo keyless direct (1.18.12); latest npm can hang/change json output
+        "kilo": "@kilocode/cli",            # Kilo's own CLI — same engine, same json events, native kilo gateway
         "claude-code": "@anthropic-ai/claude-code",
         "codex": "@openai/codex",
     }
     if RUNNER not in pkgs:
-        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use opencode | claude-code | codex")
+        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use opencode | kilo | claude-code | codex")
     r = run(["npm", "install", "-g", pkgs[RUNNER]], timeout=600)
     if r.returncode != 0:
         raise RuntimeError(f"failed to install {pkgs[RUNNER]}: {r.stderr[-500:]}")
@@ -241,7 +242,8 @@ def _run_opencode_once(prompt: str) -> str:
     # specific tool call") and the run exits 0 with NOTHING created.
     # --print-logs: opencode internals go to stderr, surfaced in the log.
     import time
-    cmd = ["opencode", "run", "--auto", "--print-logs", "--format", "json", prompt]
+    bin_name = "kilo" if RUNNER == "kilo" else "opencode"
+    cmd = [bin_name, "run", "--auto", "--print-logs", "--format", "json", prompt]
     if MODEL:
         cmd += ["--model", MODEL]
     t0 = time.monotonic()

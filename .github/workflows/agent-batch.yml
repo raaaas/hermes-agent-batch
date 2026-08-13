@@ -20,7 +20,7 @@ on:
       model:
         description: 'Model (provider/model)'
         required: false
-        default: 'opencode/mimo-v2.5-free'
+        default: 'kilo/stepfun/step-3.7-flash:free'
         type: string
       base_branch:
         description: 'Branch to fork from'
@@ -88,14 +88,37 @@ jobs:
 
       - name: Install opencode
         run: |
-          npm install -g opencode-ai
+          npm install -g opencode-ai@1.18.12
           opencode --version
+
+      - name: Configure opencode → kilo free (direct, keyless)
+        # Brain = kilo free tier, DIRECT api.kilo.ai — no relay, no VPS, no
+        # local infra in the path. Keyless: 200 req/h per egress IP.
+        run: |
+          mkdir -p ~/.config/opencode
+          cat > ~/.config/opencode/opencode.json <<'EOF'
+          {
+            "provider": {
+              "kilo": {
+                "npm": "@ai-sdk/openai-compatible",
+                "name": "Kilo Free (direct, keyless)",
+                "options": {"baseURL": "https://api.kilo.ai/api/gateway/v1"},
+                "models": {
+                  "poolside/laguna-s-2.1:free": {"name": "Laguna S 2.1 (free)"},
+                  "stepfun/step-3.7-flash:free": {"name": "Stepfun 3.7 Flash (free)"},
+                  "tencent/hy3:free": {"name": "Tencent Hy3 (free)"},
+                  "kilo-auto/free": {"name": "Kilo Auto Free"}
+                }
+              }
+            }
+          }
+          EOF
 
       - name: Run agent
         env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
-          opencode run --model ${{ github.event.inputs.model }} \
+          opencode run --auto --model ${{ github.event.inputs.model }} \
             "${{ matrix.task }}"
         timeout-minutes: 25
 
@@ -116,7 +139,7 @@ jobs:
       - name: Open PR
         if: steps.commit.outputs.committed == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
         run: |
           gh pr create \
             --base ${{ github.event.inputs.base_branch }} \
