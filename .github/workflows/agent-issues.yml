@@ -27,7 +27,7 @@ permissions:
 jobs:
   run-agent:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 150
     if: >-
       (
         github.event_name == 'issues' &&
@@ -84,4 +84,4 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           PM_PANEL_URL: ${{ secrets.PM_PANEL_URL }}
         run: python3 lifecycle/agent.py
-        timeout-minutes: 40
+        timeout-minutes: 140

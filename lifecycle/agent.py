@@ -149,6 +149,12 @@ def build_prompt(history: list[dict]) -> str:
         "- Make the changes the issue asks for; keep the diff scoped to the issue.\n"
         "- The git repo is already checked out on your own branch; commit your work.\n"
         "- Never commit secrets, credentials, or API keys.\n"
+        "- **DO NOT install packages, run pip/conda/npm, or start servers.** The runner "
+        "has no dependencies and verification is done by an external orchestrator. "
+        "Write the code (and tests if the issue asks), then leave verification to the "
+        "reviewer.\n"
+        "- Prefer reading files and editing them directly over running shell commands "
+        "that need packages.\n"
         "- Your FINAL message is what gets posted back as an issue comment — write a "
         "clear summary of what you changed, test results, and anything the reporter "
         "should know.\n"
@@ -213,7 +219,7 @@ def run_agent(prompt: str) -> str:
         cmd = ["opencode", "run", "--format", "json", prompt]
         if MODEL:
             cmd += ["--model", MODEL]
-        r = run(cmd, timeout=2400)  # step timeout is 40min; give the agent ~38min
+        r = run(cmd, timeout=6000)  # agent tasks with free kilo models are slow; step allows ~140min
         answer = _extract_opencode_answer(r.stdout)
         if not answer:
             tail = r.stdout or ""
