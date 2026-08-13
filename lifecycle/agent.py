@@ -263,14 +263,17 @@ def _run_opencode_once(prompt: str) -> str:
 
 
 def _project_changed(head_before: str) -> bool:
-    """True if the agent touched anything outside state/ (committed or not)."""
+    """True if the agent touched anything outside state/ and noise (committed or not)."""
     head_after = run(["git", "rev-parse", "HEAD"]).stdout.strip()
     if head_after and head_after != head_before:
         return True
     status = run(["git", "status", "--porcelain"]).stdout
     for line in status.splitlines():
-        if line and "state/" not in line:
-            return True
+        if not line:
+            continue
+        if "state/" in line or "__pycache__" in line or line.endswith(".pyc"):
+            continue
+        return True
     return False
 
 
