@@ -50,24 +50,20 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Configure opencode → kilo free
-        # Brain = kilo free tier (keyless, 200 req/h per egress IP).
-        # Preferred path: the user's PUBLIC relay (KILO_RELAY_URL secret,
-        # e.g. http://45.159.112.78:8788/<TOKEN>/v1) — dedicated egress IP,
-        # avoids the shared Azure runner-pool quota that makes direct
-        # api.kilo.ai calls hang. Falls back to direct api.kilo.ai when the
-        # secret is unset. Model ids are the plain kilo free ids.
-        env:
-          KILO_RELAY_URL: ${{ secrets.KILO_RELAY_URL }}
+      - name: Configure opencode → kilo free (direct, keyless)
+        # Brain = kilo free tier, DIRECT api.kilo.ai — no relay, no VPS, no
+        # local infra in the path. Keyless: 200 req/h per egress IP.
+        # Set the model via the AGENT_BATCH_MODEL repo variable,
+        # e.g. kilo/stepfun/step-3.7-flash:free
         run: |
           mkdir -p ~/.config/opencode
-          cat > ~/.config/opencode/opencode.json <<EOF
+          cat > ~/.config/opencode/opencode.json <<'EOF'
           {
             "provider": {
               "kilo": {
                 "npm": "@ai-sdk/openai-compatible",
-                "name": "Kilo Free",
-                "options": {"baseURL": "${KILO_RELAY_URL:-https://api.kilo.ai/api/gateway/v1}"},
+                "name": "Kilo Free (direct, keyless)",
+                "options": {"baseURL": "https://api.kilo.ai/api/gateway/v1"},
                 "models": {
                   "poolside/laguna-s-2.1:free": {"name": "Laguna S 2.1 (free)"},
                   "stepfun/step-3.7-flash:free": {"name": "Stepfun 3.7 Flash (free)"},
