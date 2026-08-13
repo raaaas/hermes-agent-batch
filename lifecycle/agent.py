@@ -183,17 +183,19 @@ def install_runner() -> None:
 
 
 def _extract_opencode_answer(stdout) -> str:
-    """Last assistant text from `opencode run --format json` output (gitclaw-style).
+    """Last assistant TEXT from `opencode run --format json` output.
 
-    Defensive: stdout can be None (killed subprocess) or bytes (some opencode
-    builds / timeout paths) — normalize before parsing.
+    opencode 1.18.x emits lines with types: step_start, step_finish, text,
+    tool_use. Assistant words live in {"type":"text","part":{"text": ...}}.
+    Walk ALL lines, keep the last non-empty text (the final message).
+    Defensive: stdout can be None (killed subprocess) or bytes.
     """
     if stdout is None:
         return ""
     if isinstance(stdout, bytes):
         stdout = stdout.decode("utf-8", errors="replace")
-    parts: list[str] = []
-    for line in reversed(stdout.splitlines()):
+    last_text = ""
+    for line in stdout.splitlines():
         line = line.strip()
         if not line.startswith("{"):
             continue
@@ -201,22 +203,22 @@ def _extract_opencode_answer(stdout) -> str:
             obj = json.loads(line)
         except Exception:
             continue
-        if obj.get("type") not in ("message", "message_end"):
+        if obj.get("type") != "text":
             continue
-        content = (obj.get("message") or {}).get("content")
-        if isinstance(content, list):
-            parts = [c.get("text", "") for c in content if isinstance(c, dict) and c.get("type") == "text"]
-        elif isinstance(content, str):
-            parts = [content]
-        if parts:
-            return "".join(parts).strip()
-    return ""
+        part = obj.get("part") or {}
+        text = str(part.get("text", "")).strip()
+        if text:
+            last_text = text
+    return last_text
 
 
 def run_agent(prompt: str) -> str:
     """Run the chosen agent; returns its final answer text."""
     if RUNNER == "opencode":
-        cmd = ["opencode", "run", "--format", "json", prompt]
+        # --auto: required, otherwise opencode auto-REJECTS every file write
+        # in non-interactive mode ("The user rejected permission to use this
+        # specific tool call") and the run exits 0 with NOTHING created.
+        cmd = ["opencode", "run", "--auto", "--format", "json", prompt]
         if MODEL:
             cmd += ["--model", MODEL]
         r = run(cmd, timeout=6000)  # agent tasks with free kilo models are slow; step allows ~140min
