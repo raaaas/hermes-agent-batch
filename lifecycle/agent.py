@@ -212,13 +212,24 @@ def _extract_opencode_answer(stdout) -> str:
     return last_text
 
 
+def _is_usable_answer(text: str) -> bool:
+    """Reject raw opencode event dumps that leak into the answer slot."""
+    if not text or len(text) < 5:
+        return False
+    if text.startswith("{") or '"type":"' in text:
+        return False
+    return True
+
+
 def run_agent(prompt: str) -> str:
     """Run the chosen agent; returns its final answer text."""
     if RUNNER == "opencode":
         # --auto: required, otherwise opencode auto-REJECTS every file write
         # in non-interactive mode ("The user rejected permission to use this
         # specific tool call") and the run exits 0 with NOTHING created.
-        cmd = ["opencode", "run", "--auto", "--format", "json", prompt]
+        # --print-logs: opencode internals go to stderr, surfaced below when
+        # the run produces no usable answer.
+        cmd = ["opencode", "run", "--auto", "--print-logs", "--format", "json", prompt]
         if MODEL:
             cmd += ["--model", MODEL]
         r = run(cmd, timeout=6000)  # agent tasks with free kilo models are slow; step allows ~140min
@@ -228,6 +239,10 @@ def run_agent(prompt: str) -> str:
             if isinstance(tail, bytes):
                 tail = tail.decode("utf-8", errors="replace")
             answer = tail[-8000:]
+        if not _is_usable_answer(answer):
+            err_tail = (r.stderr or "") if isinstance(r.stderr, str) else str(r.stderr or "")
+            log(f"opencode exit={r.returncode}, stderr tail: {err_tail[-1500:]}")
+            answer = "(agent produced no usable text output — see Actions run log)"
     elif RUNNER == "claude-code":
         cmd = ["claude", "-p", prompt, "--output-format", "text", "--dangerously-skip-permissions"]
         if MODEL:
