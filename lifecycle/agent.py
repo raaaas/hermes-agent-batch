@@ -142,6 +142,13 @@ def save_history(history: list[dict]) -> None:
 
 def build_prompt(history: list[dict]) -> str:
     """Compact prior turns + the new instruction, runner-agnostic."""
+    # The ORIGINAL issue is always part of the task — even when this run was
+    # triggered by a comment (e.g. "retry") with no session history. Without
+    # it the agent mistakes the comment for the whole task.
+    issue_ctx = (
+        f"ISSUE #{N} (original task): {ISSUE.get('title', '')}\n"
+        f"{ISSUE.get('body') or ''}\n\n"
+    )
     ctx = (
         f"You are an autonomous coding agent working on issue #{N} of {REPO} "
         f"(triggered by {TRIGGER}).\n"
@@ -166,6 +173,7 @@ def build_prompt(history: list[dict]) -> str:
         "- If the request is unclear or out of scope, say so honestly in the final "
         "message instead of guessing.\n\n"
     )
+    ctx += issue_ctx
     for turn in history[-8:]:
         role = "User (issue thread)" if turn["role"] == "user" else "Assistant (your previous reply)"
         ctx += f"--- {role} ---\n{turn['content'][:4000]}\n\n"
