@@ -59,7 +59,7 @@ jobs:
   agent:
     needs: prepare
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 120
     strategy:
       fail-fast: false
       matrix:
@@ -120,7 +120,7 @@ jobs:
         run: |
           opencode run --auto --model ${{ github.event.inputs.model }} \
             "${{ matrix.task }}"
-        timeout-minutes: 25
+        timeout-minutes: 110
 
       - name: Commit and push
         id: commit
