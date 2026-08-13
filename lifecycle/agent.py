@@ -116,7 +116,7 @@ def push_with_retry() -> bool:
         r = run(["git", "push", "-u", "origin", BRANCH], timeout=180)
         if r.returncode == 0:
             return True
-        log(f"push failed (attempt {attempt}/3), rebasing…")
+        log(f"push failed (attempt {attempt}/3): {(r.stderr or r.stdout or '')[-400:]} — rebasing…")
         run(["git", "pull", "--rebase", "origin", BRANCH], timeout=180)
     return False
 
@@ -154,7 +154,8 @@ def build_prompt(history: list[dict]) -> str:
         f"(triggered by {TRIGGER}).\n"
         "Rules:\n"
         "- Make the changes the issue asks for; keep the diff scoped to the issue.\n"
-        "- The git repo is already checked out on your own branch; commit your work.\n"
+        "- **DO NOT commit or push** — the orchestrator commits and pushes centrally "
+        "after you finish; leave your edits in the working tree.\n"
         "- Never commit secrets, credentials, or API keys.\n"
         "- **DO NOT install packages, run pip/conda/npm, or start servers.** The runner "
         "has no dependencies and verification is done by an external orchestrator. "
