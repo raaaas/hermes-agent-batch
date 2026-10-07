@@ -1,0 +1,14 @@
+{
+  "issue_number": 3,
+  "history": [
+    {
+      "role": "user",
+      "content": "agent test: add ISSUE_AGENT_TEST.txt\n\nCreate a file named ISSUE_AGENT_TEST.txt at the repo root whose content is exactly: issue agent ok. Do nothing else."
+    },
+    {
+      "role": "assistant",
+      "content": "Created `ISSUE_AGENT_TEST.txt` at the repo root with content: `issue agent ok`."
+    }
+  ],
+  "updated_at": "2026-10-07T10:55:48"
+}
