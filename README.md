@@ -5,6 +5,28 @@ Actions workflow. Paste a task list at night, Hermes phases it by dependency,
 dispatches one GitHub Action per phase, and each task runs as its own agent on
 its own branch, ending in a PR.
 
+## 🫡 The runner squad
+
+Issue-agent brains, pluggable via `AGENT_BATCH_RUNNER`. Pick a free one or bring your own key:
+
+[![cline — default](https://img.shields.io/badge/cline-default%20brain-9B5DE5?style=flat-square&logo=cline&logoColor=white)](#setup)
+[![opencode](https://img.shields.io/badge/opencode-free+tier-111111?style=flat-square&logo=opencode&logoColor=white)](#setup)
+[![kilo](https://img.shields.io/npm/v/%40kilocode%2Fcli?label=kilo%20keyless&logo=npm&style=flat-square)](https://www.npmjs.com/package/@kilocode/cli)
+[![claude-code](https://img.shields.io/badge/claude--code-BYOK-D97757?style=flat-square&logo=anthropic&logoColor=white)](#setup)
+[![codex](https://img.shields.io/npm/v/%40openai%2Fcodex?label=codex&style=flat-square)](https://www.npmjs.com/package/@openai/codex)
+[![dsh](https://img.shields.io/badge/dsh-deepseek%20harness-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](#setup)
+[![qoder](https://img.shields.io/badge/qodercli-soon%20%3A%29-111111?style=flat-square)](#setup)
+
+| Runner        | Free path                          | BYOK path                                    |
+| ------------- | ---------------------------------- | -------------------------------------------- |
+| **cline** ⭐  | Cline Credits gateway              | `AGENT_BATCH_PROVIDER` + provider key secret |
+| opencode      | zen relay free models              | `OPENCODE_API_KEY`                           |
+| kilo          | keyless free pool (~200 req/h/IP)  | —                                            |
+| claude-code   | —                                  | `ANTHROPIC_API_KEY`                          |
+| codex         | —                                  | `OPENROUTER_API_KEY` (or any codex provider) |
+| dsh           | —                                  | `DEEPSEEK_API_KEY` (+ optional proxy URL)    |
+| qoder         | 🔜 pending headless CI auth         | —                                            |
+
 The core insight: **parallel agents on separate branches push a project
 forward with better quality than one agent hammering a single branch with
 thousands of requests.** Each agent gets a clean checkout, full project
