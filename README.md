@@ -1,5 +1,8 @@
 # Agent Batch 🤖
 
+▶️ **[Watch the demo](docs/hermes-agent-batch.mp4)** — issue opened → agent
+runs in its own GitHub Actions sandbox → branch + PR + comment.
+
 **An overnight squad of AI coding agents that runs entirely inside GitHub
 Actions.** Drop a task list before bed: every task gets its own **fresh, fully
 isolated Linux sandbox VM**, its own git branch, and its own coding agent.
