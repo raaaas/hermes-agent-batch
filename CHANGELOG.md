@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- `dsh` runner — DeepSeek Harness headless (`@deepseek-ai/dsh`); needs
+  `DEEPSEEK_API_KEY`, optional `DEEPSEEK_BASE_URL` proxy.
+- `cline` runner — Cline CLI headless `--json`; BYOK via
+  `AGENT_BATCH_PROVIDER` + matching `*_API_KEY` secret.
+
+### Changed
+- Default runner is now `cline` (was `opencode`).
+- Shared one-shot retry when a run leaves no project changes now covers
+  cline as well as opencode/kilo.
+
 ## v0.1.0
 
 Initial release.

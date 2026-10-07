@@ -95,13 +95,23 @@ Actions.
 1. Copy `.github/workflows/agent-issues.yml` + the `lifecycle/` folder into the
    target repo (this repo already ships both).
 2. Add the model/runner secret your agent needs:
+   - cline → nothing for Cline's own gateway (spends Cline Credits); for
+     free/BYOK models set `AGENT_BATCH_PROVIDER` + the matching key:
+     `openrouter` → `OPENROUTER_API_KEY`, `anthropic` → `ANTHROPIC_API_KEY`,
+     `openai` → `OPENAI_API_KEY`, …
    - opencode → `OPENCODE_API_KEY`
+   - kilo → nothing — keyless kilo free pool (≈200 req/h per egress IP)
    - claude-code → `ANTHROPIC_API_KEY`
    - codex → `OPENROUTER_API_KEY` (or any provider key codex supports)
    - dsh → `DEEPSEEK_API_KEY` (+ optional `DEEPSEEK_BASE_URL`)
 3. Optional repo variables:
-   - `AGENT_BATCH_RUNNER` — `opencode` (default) | `kilo` | `claude-code` | `codex` | `dsh`
-   - `AGENT_BATCH_MODEL` — e.g. `opencode/mimo-v2.5-free`
+   - `AGENT_BATCH_RUNNER` — `cline` (default) | `opencode` | `kilo` | `claude-code` | `codex` | `dsh`
+   - `AGENT_BATCH_MODEL` — e.g. `qwen/qwen3.7-flash` (cline) or
+     `kilo/stepfun/step-3.7-flash:free` (opencode/kilo)
+   - `AGENT_BATCH_PROVIDER` — cline BYOK provider id (`openrouter`,
+     `anthropic`, `openai`, …); unset = Cline's own gateway
+   - (qoder-cli is intentionally not wired yet — GitHub-hosted runners can't
+     browser-login to Qoder; revisit when token auth lands)
 4. For the **`dsh`** runner (DeepSeek Harness), add the `DEEPSEEK_API_KEY`
    secret (required) and optionally `DEEPSEEK_BASE_URL` (an OpenAI-compatible
    proxy endpoint). `dsh --profile headless "task"` prints the final answer and
