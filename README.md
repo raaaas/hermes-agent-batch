@@ -98,10 +98,15 @@ Actions.
    - opencode → `OPENCODE_API_KEY`
    - claude-code → `ANTHROPIC_API_KEY`
    - codex → `OPENROUTER_API_KEY` (or any provider key codex supports)
+   - dsh → `DEEPSEEK_API_KEY` (+ optional `DEEPSEEK_BASE_URL`)
 3. Optional repo variables:
-   - `AGENT_BATCH_RUNNER` — `opencode` (default) | `claude-code` | `codex`
+   - `AGENT_BATCH_RUNNER` — `opencode` (default) | `kilo` | `claude-code` | `codex` | `dsh`
    - `AGENT_BATCH_MODEL` — e.g. `opencode/mimo-v2.5-free`
-4. Optional: `PM_PANEL_URL` secret (e.g. `https://panel.example.com`) — every
+4. For the **`dsh`** runner (DeepSeek Harness), add the `DEEPSEEK_API_KEY`
+   secret (required) and optionally `DEEPSEEK_BASE_URL` (an OpenAI-compatible
+   proxy endpoint). `dsh --profile headless "task"` prints the final answer and
+   exits — no server, CI-safe.
+5. Optional: `PM_PANEL_URL` secret (e.g. `https://panel.example.com`) — every
    run is POSTed to `<url>/api/agent-batch/log` so the Hermes project-manager
    panel (🤖 Agent Batch view) shows what the GitHub side did. Skipped silently
    when unset.

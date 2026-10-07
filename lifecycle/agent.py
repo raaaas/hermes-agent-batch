@@ -11,7 +11,9 @@ Runs inside the agent-issues.yml workflow. One issue = one agent session:
     (PM_PANEL_URL secret; skipped when unset)
 
 Runner is pluggable via the RUNNER env (repo variable AGENT_BATCH_RUNNER):
-  opencode (default) | claude-code | codex
+  opencode (default) | kilo | claude-code | codex | dsh
+  (dsh = DeepSeek Harness one-shot headless; needs DEEPSEEK_API_KEY secret,
+   optional DEEPSEEK_BASE_URL for a proxy endpoint)
 """
 from __future__ import annotations
 
@@ -189,10 +191,11 @@ def install_runner() -> None:
         "kilo": "@kilocode/cli",            # Kilo's own CLI — same engine, same json events, native kilo gateway
         "claude-code": "@anthropic-ai/claude-code",
         "codex": "@openai/codex",
+        "dsh": "@deepseek-ai/dsh",          # DeepSeek Harness one-shot headless runner (`dsh --profile headless`)
     }
     if RUNNER not in pkgs:
-        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use opencode | kilo | claude-code | codex")
-    r = run(["npm", "install", "-g", pkgs[RUNNER]], timeout=600)
+        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use opencode | kilo | claude-code | codex | dsh")
+    r = run(["npm", "install", "-g", pkgs[RUNNER]], timeout=900)
     if r.returncode != 0:
         raise RuntimeError(f"failed to install {pkgs[RUNNER]}: {r.stderr[-500:]}")
 
@@ -234,6 +237,30 @@ def _is_usable_answer(text: str) -> bool:
     if text.startswith("{") or '"type":"' in text:
         return False
     return True
+
+
+def _run_dsh_once(prompt: str) -> str:
+    """One `dsh --profile headless` run; returns the final assistant text.
+
+    DeepSeek Harness prints the last non-empty assistant message to stdout and
+    exits 0 on a completed turn (1 on error). It needs DEEPSEEK_API_KEY (and
+    optionally DEEPSEEK_BASE_URL for a proxy) in the environment. No listening
+    port — safe for CI.
+    """
+    import time
+    cmd = ["dsh", "--profile", "headless", prompt]
+    t0 = time.monotonic()
+    r = run(cmd, timeout=6000)
+    elapsed = int(time.monotonic() - t0)
+    err_tail = (r.stderr or "") if isinstance(r.stderr, str) else str(r.stderr or "")
+    log(f"dsh exit={r.returncode} after {elapsed}s; stderr tail: {err_tail[-800:]}")
+    answer = r.stdout
+    if isinstance(answer, bytes):
+        answer = answer.decode("utf-8", errors="replace")
+    answer = (answer or "").strip()
+    if not answer:
+        answer = "(agent produced no text output — see Actions run log)"
+    return answer
 
 
 def _run_opencode_once(prompt: str) -> str:
@@ -300,6 +327,8 @@ def run_agent(prompt: str) -> str:
             cmd += ["--model", MODEL]
         r = run(cmd, timeout=1500)
         answer = r.stdout.strip()[-8000:]
+    elif RUNNER == "dsh":
+        answer = _run_dsh_once(prompt)
     else:  # codex
         cmd = ["codex", "exec", "--full-auto", prompt]
         if MODEL:
