@@ -1,9 +1,17 @@
 # Agent Batch 🤖
 
-**Parallel AI task orchestrator for GitHub** — a Hermes desktop plugin + GitHub
-Actions workflow. Paste a task list at night, Hermes phases it by dependency,
-dispatches one GitHub Action per phase, and each task runs as its own agent on
-its own branch, ending in a PR.
+**An overnight squad of AI coding agents that runs entirely inside GitHub
+Actions.** Drop a task list before bed: every task gets its own **fresh, fully
+isolated Linux sandbox VM**, its own git branch, and its own coding agent.
+They work in parallel while you sleep; you wake up to clean PRs.
+
+- **Full sandbox per task** — GitHub-hosted runners are throwaway VMs. An
+  agent can't touch your laptop, your prod, or its siblings' work.
+- **Free** — public repos get free GitHub Actions minutes; several runners
+  (kilo, opencode free models, cline) cost $0 in LLM credits.
+- **Better than "the internet" of babysitting one agent** — no long shared
+  context rotting over thousands of requests, no merge fights, no stuck
+  terminal. Each agent starts with a clean checkout and full project context.
 
 ## 🫡 The runner squad
 
@@ -27,6 +35,12 @@ Issue-agent brains, pluggable via `AGENT_BATCH_RUNNER`. Pick a free one or bring
 | dsh           | —                                  | `DEEPSEEK_API_KEY` (+ optional proxy URL)    |
 | qoder         | 🔜 pending headless CI auth         | —                                            |
 
+**What "parallel" actually means:** 10 tasks → 10 GitHub Actions jobs → 10
+VMs → 10 branches → 10 PRs. They run at the same time on the *same repo*
+without colliding, because each one only ever sees its own copy and only
+touches its own branch. One agent doing 10 tasks sequentially shares a single
+degrading context window; ten agents each get a fresh one.
+
 The core insight: **parallel agents on separate branches push a project
 forward with better quality than one agent hammering a single branch with
 thousands of requests.** Each agent gets a clean checkout, full project
@@ -40,17 +54,21 @@ context, and no merge conflicts with its siblings — until the PRs land.
                ▼
 ┌─ workflow: agent-batch.yml ──────────────────────────────────┐
 │  prepare: task list → matrix                                  │
-│  agent N: branch agent-0N-xxx → opencode → commit → PR        │
+│  agent N: branch agent-0N-xxx → $RUNNER → commit → PR         │
 └───────────────────────────────────────────────────────────────┘
 ```
 
-## Why opencode?
+## Why GitHub Actions is the whole backend
 
-- Single binary, installed with one `curl` — no venv, no Python on the runner.
-- Runs non-interactively (`opencode run "task"`).
-- Free model tier via zen relay (`opencode/mimo-v2.5-free`,
-  `opencode/deepseek-v4-flash-free`, …) — zero LLM cost.
-- GitHub-hosted runners are free for public repos.
+- **The workflow *is* the infrastructure** — one YAML file, no server, no
+  queue, no Docker. Push the file, open an issue, agents run.
+- **Free compute** — public repos get unlimited GitHub-hosted runner minutes;
+  pair them with the free-model runners above and the whole pipeline costs $0.
+- **Real sandboxing** — every job is a clean, networked, disposable VM that
+  vanishes after the run. Failed agent? Its sandbox is already gone; retry on
+  a fresh one.
+- **Matrix fan-out for free** — GitHub's `strategy.matrix` spawns N parallel
+  jobs natively, with logs, timing, and retry per job.
 
 ## Repo layout
 
