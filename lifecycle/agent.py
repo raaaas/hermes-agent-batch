@@ -11,7 +11,9 @@ Runs inside the agent-issues.yml workflow. One issue = one agent session:
     (PM_PANEL_URL secret; skipped when unset)
 
 Runner is pluggable via the RUNNER env (repo variable AGENT_BATCH_RUNNER):
-  opencode (default) | kilo | claude-code | codex | dsh
+  cline (default) | opencode | kilo | claude-code | codex | dsh
+  (cline = Cline CLI; free via its own gateway, BYOK via PROVIDER env
+   (repo variable AGENT_BATCH_PROVIDER) + matching *_API_KEY secret)
   (dsh = DeepSeek Harness one-shot headless; needs DEEPSEEK_API_KEY secret,
    optional DEEPSEEK_BASE_URL for a proxy endpoint)
 """
@@ -27,8 +29,9 @@ import urllib.request
 REPO = os.environ["GITHUB_REPOSITORY"]
 EVENT_NAME = os.environ["GITHUB_EVENT_NAME"]
 DEFAULT_BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
-RUNNER = (os.environ.get("RUNNER") or "opencode").strip().lower()
+RUNNER = (os.environ.get("RUNNER") or "cline").strip().lower()
 MODEL = (os.environ.get("MODEL") or "").strip()
+PROVIDER = (os.environ.get("PROVIDER") or "").strip()
 PM_PANEL_URL = (os.environ.get("PM_PANEL_URL") or "").strip().rstrip("/")
 BOT_NAME = "agent-batch[bot]"
 BOT_EMAIL = "agent-batch[bot]@users.noreply.github.com"
@@ -187,6 +190,7 @@ def build_prompt(history: list[dict]) -> str:
 # ---------------------------------------------------------------- runner
 def install_runner() -> None:
     pkgs = {
+        "cline": "cline",                   # Cline CLI — free via its gateway, BYOK via --provider + *_API_KEY env
         "opencode": "opencode-ai@1.18.12",  # pinned: validated against kilo keyless direct (1.18.12); latest npm can hang/change json output
         "kilo": "@kilocode/cli",            # Kilo's own CLI — same engine, same json events, native kilo gateway
         "claude-code": "@anthropic-ai/claude-code",
@@ -194,7 +198,7 @@ def install_runner() -> None:
         "dsh": "@deepseek-ai/dsh",          # DeepSeek Harness one-shot headless runner (`dsh --profile headless`)
     }
     if RUNNER not in pkgs:
-        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use opencode | kilo | claude-code | codex | dsh")
+        raise SystemExit(f"unknown RUNNER '{RUNNER}' — use cline | opencode | kilo | claude-code | codex | dsh")
     r = run(["npm", "install", "-g", pkgs[RUNNER]], timeout=900)
     if r.returncode != 0:
         raise RuntimeError(f"failed to install {pkgs[RUNNER]}: {r.stderr[-500:]}")
@@ -263,6 +267,86 @@ def _run_dsh_once(prompt: str) -> str:
     return answer
 
 
+def _extract_cline_answer(stdout) -> str:
+    """Final text from `cline --json` output.
+
+    cline emits JSON lines: {type:"hook_event"|"agent_event"|"run_result", ...}.
+    The authoritative final answer is run_result.text; fall back to the last
+    agent_event with type "text". Defensive: stdout can be None or bytes.
+    """
+    if stdout is None:
+        return ""
+    if isinstance(stdout, bytes):
+        stdout = stdout.decode("utf-8", errors="replace")
+    run_result_text = ""
+    last_event_text = ""
+    for line in stdout.splitlines():
+        line = line.strip()
+        if not line.startswith("{"):
+            continue
+        try:
+            obj = json.loads(line)
+        except Exception:
+            continue
+        t = obj.get("type")
+        if t == "run_result":
+            text = str(obj.get("text", "")).strip()
+            if text:
+                run_result_text = text
+        elif t == "agent_event":
+            ev = obj.get("event") or {}
+            if isinstance(ev, str):
+                continue
+            if ev.get("type") == "text":
+                text = str(ev.get("text", "")).strip()
+                if text:
+                    last_event_text = text
+    return run_result_text or last_event_text
+
+
+def _run_cline_once(prompt: str) -> str:
+    """One `cline --json` headless run; returns the answer text (never raises)."""
+    import time
+    cmd = ["cline", "--json", "--auto-approve", "true"]
+    if PROVIDER:
+        cmd += ["--provider", PROVIDER]
+    if MODEL:
+        cmd += ["--model", MODEL]
+    cmd += ["--timeout", "5400", prompt]
+    t0 = time.monotonic()
+    r = run(cmd, timeout=6000)
+    elapsed = int(time.monotonic() - t0)
+    err_tail = (r.stderr or "") if isinstance(r.stderr, str) else str(r.stderr or "")
+    log(f"cline exit={r.returncode} after {elapsed}s; stderr tail: {err_tail[-800:]}")
+    answer = _extract_cline_answer(r.stdout)
+    if not answer:
+        tail = r.stdout or ""
+        if isinstance(tail, bytes):
+            tail = tail.decode("utf-8", errors="replace")
+        answer = tail[-8000:]
+    if not _is_usable_answer(answer):
+        answer = "(agent produced no usable text output — see Actions run log)"
+    return answer
+
+
+def _run_with_retry(run_once, prompt: str) -> str:
+    """Run once; if the agent left no project changes, re-run once.
+
+    Free-tier models from a shared GitHub runner egress IP can die mid-task
+    (quota / hangs) with zero output — a fresh run often lands on a healthy
+    bucket.
+    """
+    head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
+    answer = run_once(prompt)
+    if _project_changed(head_before):
+        return answer
+    log("no project changes after run 1 — re-running the agent once")
+    answer2 = run_once(prompt)
+    if not _is_usable_answer(answer2) and _is_usable_answer(answer):
+        return answer
+    return answer2
+
+
 def _run_opencode_once(prompt: str) -> str:
     """One opencode run; returns the answer text (never raises)."""
     # --auto: required, otherwise opencode auto-REJECTS every file write
@@ -307,20 +391,10 @@ def _project_changed(head_before: str) -> bool:
 
 def run_agent(prompt: str) -> str:
     """Run the chosen agent; returns its final answer text."""
+    if RUNNER == "cline":
+        return _run_with_retry(_run_cline_once, prompt)
     if RUNNER == "opencode":
-        head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
-        answer = _run_opencode_once(prompt)
-        if _project_changed(head_before):
-            return answer
-        # Free kilo from a shared GitHub runner IP can die mid-task (quota /
-        # hangs) with zero output. Re-run once — a fresh runner IP often lands
-        # on a healthy bucket.
-        log("no project changes after run 1 — re-running the agent once")
-        head_before = run(["git", "rev-parse", "HEAD"]).stdout.strip()
-        answer2 = _run_opencode_once(prompt)
-        if not _is_usable_answer(answer2) and _is_usable_answer(answer):
-            return answer
-        return answer2
+        return _run_with_retry(_run_opencode_once, prompt)
     if RUNNER == "claude-code":
         cmd = ["claude", "-p", prompt, "--output-format", "text", "--dangerously-skip-permissions"]
         if MODEL:
