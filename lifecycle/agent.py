@@ -393,7 +393,8 @@ def run_agent(prompt: str) -> str:
     """Run the chosen agent; returns its final answer text."""
     if RUNNER == "cline":
         return _run_with_retry(_run_cline_once, prompt)
-    if RUNNER == "opencode":
+    if RUNNER in ("opencode", "kilo"):
+        # _run_opencode_once picks the kilo binary when RUNNER == "kilo"
         return _run_with_retry(_run_opencode_once, prompt)
     if RUNNER == "claude-code":
         cmd = ["claude", "-p", prompt, "--output-format", "text", "--dangerously-skip-permissions"]

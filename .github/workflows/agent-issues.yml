@@ -51,11 +51,7 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Configure opencode free gateway (opencode runner only)
-        # Only touches the workflow when RUNNER=opencode — cline/kilo/claude/
-        # codex/dsh runs never read this file. Set AGENT_BATCH_RUNNER=opencode
-        # to get the keyless free pool.
-        if: vars.AGENT_BATCH_RUNNER == 'opencode'
+      - name: Configure opencode → kilo free (direct, keyless)
         # Brain = kilo free tier, DIRECT api.kilo.ai — no relay, no VPS, no
         # local infra in the path. Keyless: 200 req/h per egress IP.
         # Set the model via the AGENT_BATCH_MODEL repo variable,
