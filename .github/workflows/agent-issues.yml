@@ -7,7 +7,8 @@ name: Issue Agent — gitclaw-style
 #   - the agent works on branch agent/issue-<N> → opens a PR
 #   - replies as an issue comment with a summary + PR link
 #   - runner is pluggable via repo variable AGENT_BATCH_RUNNER:
-#     opencode (default) | claude-code | codex
+#     cline (default) | opencode | kilo | claude-code | codex | dsh
+#     free vs BYOK: AGENT_BATCH_PROVIDER + matching *_API_KEY secret
 #   - optionally logs the run to the Hermes project-manager panel via the
 #     PM_PANEL_URL secret (skipped silently when unset)
 # Security: only repo OWNER / MEMBER / COLLABORATOR can trigger (same as
@@ -80,9 +81,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
           RUNNER: ${{ vars.AGENT_BATCH_RUNNER }}
           MODEL: ${{ vars.AGENT_BATCH_MODEL }}
+          PROVIDER: ${{ vars.AGENT_BATCH_PROVIDER }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
           DEEPSEEK_BASE_URL: ${{ secrets.DEEPSEEK_BASE_URL }}
           PM_PANEL_URL: ${{ secrets.PM_PANEL_URL }}
