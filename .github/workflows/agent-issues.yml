@@ -78,34 +78,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Configure opencode free gateway (opencode runner only)
-        # OPT-IN: only runs when AGENT_BATCH_RUNNER is explicitly set to
-        # 'opencode'. cline/kilo/claude-code/codex/dsh never read this file —
-        # they use their own auth (BYOK via the *_API_KEY secrets below).
-        # Points opencode at a keyless free pool (api.kilo.ai gateway).
-        # Set the model via the AGENT_BATCH_MODEL repo variable,
-        # e.g. stepfun/step-3.7-flash:free
-        if: vars.AGENT_BATCH_RUNNER == 'opencode'
-        run: |
-          mkdir -p ~/.config/opencode
-          cat > ~/.config/opencode/opencode.json <<'EOF'
-          {
-            "provider": {
-              "kilo": {
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "Kilo Free (direct, keyless)",
-                "options": {"baseURL": "https://api.kilo.ai/api/gateway/v1"},
-                "models": {
-                  "poolside/laguna-s-2.1:free": {"name": "Laguna S 2.1 (free)"},
-                  "stepfun/step-3.7-flash:free": {"name": "Stepfun 3.7 Flash (free)"},
-                  "tencent/hy3:free": {"name": "Tencent Hy3 (free)"},
-                  "kilo-auto/free": {"name": "Kilo Auto Free"}
-                }
-              }
-            }
-          }
-          EOF
-
       - name: Run agent
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}

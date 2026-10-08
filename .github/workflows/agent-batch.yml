@@ -114,30 +114,6 @@ jobs:
           esac
           npm install -g "$pkg"
 
-      - name: Configure opencode free gateway (opencode only)
-        # ONLY when the chosen runner is opencode: points it at a keyless free
-        # pool. Any other runner ignores this file entirely.
-        if: github.event.inputs.runner == 'opencode'
-        run: |
-          mkdir -p ~/.config/opencode
-          cat > ~/.config/opencode/opencode.json <<'EOF'
-          {
-            "provider": {
-              "kilo": {
-                "npm": "@ai-sdk/openai-compatible",
-                "name": "Free (direct, keyless)",
-                "options": {"baseURL": "https://api.kilo.ai/api/gateway/v1"},
-                "models": {
-                  "poolside/laguna-s-2.1:free": {"name": "Laguna S 2.1 (free)"},
-                  "stepfun/step-3.7-flash:free": {"name": "Step 3.7 Flash (free)"},
-                  "tencent/hy3:free": {"name": "Hy3 (free)"},
-                  "kilo-auto/free": {"name": "Auto Free"}
-                }
-              }
-            }
-          }
-          EOF
-
       - name: Run agent
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
@@ -160,7 +136,8 @@ jobs:
               [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
               cline "${ARGS[@]}" --timeout 5400 "$TASK" ;;
             opencode)
-              ARGS=(run --auto --print-logs --model "${MODEL:-kilo/kilo-auto/free}")
+              ARGS=(run --auto --print-logs)
+              [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
               opencode "${ARGS[@]}" "$TASK" ;;
             kilo)
               ARGS=(run --auto --print-logs)

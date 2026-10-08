@@ -153,7 +153,7 @@ Actions.
 3. Optional repo variables:
    - `AGENT_BATCH_RUNNER` — `cline` (default) | `opencode` | `kilo` | `claude-code` | `codex` | `dsh`
    - `AGENT_BATCH_MODEL` — e.g. `qwen/qwen3.7-flash` (cline) or
-     `kilo/stepfun/step-3.7-flash:free` (opencode/kilo)
+     `opencode/mimo-v2.5-free` (opencode); empty = the runner's own default
    - `AGENT_BATCH_PROVIDER` — cline BYOK provider id (`openrouter`,
      `anthropic`, `openai`, …); unset = Cline's own gateway
    - (qoder-cli is intentionally not wired yet — GitHub-hosted runners can't
