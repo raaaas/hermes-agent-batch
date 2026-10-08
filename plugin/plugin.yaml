@@ -1,3 +1,30 @@
 name: agent-batch
 version: 1.0.0
 description: Parallel AI task orchestrator — phase tasks, dispatch GitHub Actions agents, track PRs
+
+# What the agent half registers (validate checks this against register()).
+provides_tools:
+  - agent_batch_plan
+  - agent_batch_phase
+
+# The one credential. Everything else has a working default or is set in the panel.
+requires_env:
+  - name: GITHUB_TOKEN
+    description: "GitHub token that dispatches the workflow and reads runs/PRs (classic or fine-grained with Actions:write + pull-requests:write)"
+    url: "https://github.com/settings/tokens"
+    secret: true
+
+# Optional environment — none of these is required to load, and the panel overrides them per plan.
+optional_env:
+  - name: AGENT_BATCH_REPO
+    description: "Default owner/repo to dispatch against; leave unset to name the repo in the panel"
+    secret: false
+  - name: AGENT_BATCH_WORKFLOW
+    description: "Workflow file in that repo (default: agent-batch.yml)"
+    secret: false
+  - name: AGENT_BATCH_MODEL
+    description: "provider/model handed to each agent (empty: the runner CLI's own default)"
+    secret: false
+  - name: AGENT_BATCH_STATE
+    description: "Directory override for plan.json/runs.json (default: <hermes home>/plugin-data/agent-batch). A path, not a secret."
+    secret: false
