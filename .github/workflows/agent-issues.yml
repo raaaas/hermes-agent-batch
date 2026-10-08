@@ -6,9 +6,12 @@ name: Issue Agent — gitclaw-style
 #     state/issues/<N>.json committed to git)
 #   - the agent works on branch agent/issue-<N> → opens a PR
 #   - replies as an issue comment with a summary + PR link
-#   - runner is pluggable via repo variable AGENT_BATCH_RUNNER:
-#     cline (default) | opencode | kilo | claude-code | codex | dsh
-#     free vs BYOK: AGENT_BATCH_PROVIDER + matching *_API_KEY secret
+#   - multi-CLI launcher: pick the agent per issue with `runner: <cli>`
+#     anywhere in the issue title/body:
+#     cline | opencode | kilo | claude-code | codex | dsh
+#     (no marker → repo variable AGENT_BATCH_RUNNER, then cline)
+#     free vs BYOK: AGENT_BATCH_PROVIDER + matching *_API_KEY secret;
+#     each CLI authenticates natively — nothing re-routes anything else
 #   - optionally logs the run to the Hermes project-manager panel via the
 #     PM_PANEL_URL secret (skipped silently when unset)
 # Security: only repo OWNER / MEMBER / COLLABORATOR can trigger the agent

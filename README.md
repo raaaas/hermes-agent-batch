@@ -25,7 +25,7 @@ Issue-agent brains, pluggable via `AGENT_BATCH_RUNNER`. Pick a free one or bring
 
 [![cline — default](https://img.shields.io/badge/cline-default%20brain-9B5DE5?style=flat-square&logo=cline&logoColor=white)](#setup)
 [![opencode](https://img.shields.io/badge/opencode-free+tier-111111?style=flat-square&logo=opencode&logoColor=white)](#setup)
-[![kilo](https://img.shields.io/npm/v/%40kilocode%2Fcli?label=kilo%20keyless&logo=npm&style=flat-square)](https://www.npmjs.com/package/@kilocode/cli)
+[![kilo](https://img.shields.io/npm/v/%40kilocode%2Fcli?label=kilo%20CLI&logo=npm&style=flat-square)](https://www.npmjs.com/package/@kilocode/cli)
 [![claude-code](https://img.shields.io/badge/claude--code-BYOK-D97757?style=flat-square&logo=anthropic&logoColor=white)](#setup)
 [![codex](https://img.shields.io/npm/v/%40openai%2Fcodex?label=codex&style=flat-square)](https://www.npmjs.com/package/@openai/codex)
 [![dsh](https://img.shields.io/badge/dsh-deepseek%20harness-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](#setup)
@@ -35,7 +35,7 @@ Issue-agent brains, pluggable via `AGENT_BATCH_RUNNER`. Pick a free one or bring
 | ------------- | ---------------------------------- | -------------------------------------------- |
 | **cline** ⭐  | Cline Credits gateway              | `AGENT_BATCH_PROVIDER` + provider key secret |
 | opencode      | zen relay free models              | `OPENCODE_API_KEY`                           |
-| kilo          | keyless free pool (~200 req/h/IP)  | —                                            |
+| kilo          | — (CLI default models need a Kilo "Go" sub) | Kilo account login               |
 | claude-code   | —                                  | `ANTHROPIC_API_KEY`                          |
 | codex         | —                                  | `OPENROUTER_API_KEY` (or any codex provider) |
 | dsh           | —                                  | `DEEPSEEK_API_KEY` (+ optional proxy URL)    |
@@ -146,7 +146,8 @@ Actions.
      `openrouter` → `OPENROUTER_API_KEY`, `anthropic` → `ANTHROPIC_API_KEY`,
      `openai` → `OPENAI_API_KEY`, …
    - opencode → `OPENCODE_API_KEY`
-   - kilo → nothing — keyless kilo free pool (≈200 req/h per egress IP)
+   - kilo → a Kilo account with an active "Go" subscription — keyless CI runs
+     fail on the model call (verified in Actions run 37748996133)
    - claude-code → `ANTHROPIC_API_KEY`
    - codex → `OPENROUTER_API_KEY` (or any provider key codex supports)
    - dsh → `DEEPSEEK_API_KEY` (+ optional `DEEPSEEK_BASE_URL`)
@@ -158,11 +159,15 @@ Actions.
      `anthropic`, `openai`, …); unset = Cline's own gateway
    - (qoder-cli is intentionally not wired yet — GitHub-hosted runners can't
      browser-login to Qoder; revisit when token auth lands)
-4. For the **`dsh`** runner (DeepSeek Harness), add the `DEEPSEEK_API_KEY`
+4. **Per-issue CLI (the multi-launcher bit):** write `runner: opencode` — or
+   `cline` / `kilo` / `claude-code` / `codex` / `dsh` — anywhere in the issue
+   title or body (or a resume comment) and that issue's agent runs with that
+   CLI. No marker → `AGENT_BATCH_RUNNER` variable → cline.
+5. For the **`dsh`** runner (DeepSeek Harness), add the `DEEPSEEK_API_KEY`
    secret (required) and optionally `DEEPSEEK_BASE_URL` (an OpenAI-compatible
    proxy endpoint). `dsh --profile headless "task"` prints the final answer and
    exits — no server, CI-safe.
-5. Optional: `PM_PANEL_URL` secret (e.g. `https://panel.example.com`) — every
+6. Optional: `PM_PANEL_URL` secret (e.g. `https://panel.example.com`) — every
    run is POSTed to `<url>/api/agent-batch/log` so the Hermes project-manager
    panel (🤖 Agent Batch view) shows what the GitHub side did. Skipped silently
    when unset.

@@ -10,17 +10,22 @@ Runs inside the agent-issues.yml workflow. One issue = one agent session:
   - optionally POSTs a run log to the Hermes project-manager panel
     (PM_PANEL_URL secret; skipped when unset)
 
-Runner is pluggable via the RUNNER env (repo variable AGENT_BATCH_RUNNER):
-  cline (default) | opencode | kilo | claude-code | codex | dsh
-  (cline = Cline CLI; free via its own gateway, BYOK via PROVIDER env
-   (repo variable AGENT_BATCH_PROVIDER) + matching *_API_KEY secret)
-  (dsh = DeepSeek Harness one-shot headless; needs DEEPSEEK_API_KEY secret,
-   optional DEEPSEEK_BASE_URL for a proxy endpoint)
+Runner is pluggable per issue — write `runner: <cli>` anywhere in the issue
+title/body (or a resume comment) to pick the CLI for that issue:
+  cline | opencode | kilo | claude-code | codex | dsh
+Default when an issue doesn't choose: the RUNNER env (repo variable
+AGENT_BATCH_RUNNER). Auth per CLI is the CLI's own: BYOK via PROVIDER env
+(repo variable AGENT_BATCH_PROVIDER) + matching *_API_KEY secret;
+(dsh = DeepSeek Harness one-shot headless; needs DEEPSEEK_API_KEY secret,
+ optional DEEPSEEK_BASE_URL for a proxy endpoint)
+NOTE: kilo's CLI default models need an active Kilo "Go" subscription —
+keyless runs in CI do NOT work (verified Actions run 37748996133).
 """
 from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -29,7 +34,7 @@ import urllib.request
 REPO = os.environ["GITHUB_REPOSITORY"]
 EVENT_NAME = os.environ["GITHUB_EVENT_NAME"]
 DEFAULT_BRANCH = os.environ.get("GITHUB_REF_NAME", "main")
-RUNNER = (os.environ.get("RUNNER") or "cline").strip().lower()
+RUNNER_DEFAULT = (os.environ.get("RUNNER") or "cline").strip().lower()
 MODEL = (os.environ.get("MODEL") or "").strip()
 PROVIDER = (os.environ.get("PROVIDER") or "").strip()
 PM_PANEL_URL = (os.environ.get("PM_PANEL_URL") or "").strip().rstrip("/")
@@ -49,6 +54,21 @@ if EVENT_NAME == "issue_comment":
 else:
     PROMPT = f"{ISSUE.get('title', '')}\n\n{ISSUE.get('body') or ''}".strip()
     TRIGGER = ISSUE["user"]["login"]
+
+_VALID_RUNNERS = ("cline", "opencode", "kilo", "claude-code", "codex", "dsh")
+
+
+def _runner_override() -> str | None:
+    """Per-issue CLI choice — this is what makes the issue agent a multi-CLI
+    launcher: put `runner: <cli>` anywhere in the issue title/body (or a
+    resume comment) and THIS issue runs with that CLI. Falls back to the
+    AGENT_BATCH_RUNNER repo variable, then cline."""
+    text = " ".join(filter(None, [ISSUE.get("title", ""), ISSUE.get("body") or "", PROMPT])).lower()
+    m = re.search(r"runner\s*[:=]\s*[`'\"]?([a-z0-9][a-z0-9_-]*)", text)
+    return m.group(1) if m and m.group(1) in _VALID_RUNNERS else None
+
+
+RUNNER = _runner_override() or RUNNER_DEFAULT
 
 STATE_DIR = "state/issues"
 SESSION_FILE = f"{STATE_DIR}/{N}.json"
@@ -192,7 +212,7 @@ def install_runner() -> None:
     pkgs = {
         "cline": "cline",                   # Cline CLI — free via its gateway, BYOK via --provider + *_API_KEY env
         "opencode": "opencode-ai@1.18.12",  # pinned: validated against kilo keyless direct (1.18.12); latest npm can hang/change json output
-        "kilo": "@kilocode/cli",            # Kilo's own CLI — same engine, same json events, native kilo gateway
+        "kilo": "@kilocode/cli",            # Kilo's own CLI — needs a Kilo account / "Go" plan; NOT keyless in CI
         "claude-code": "@anthropic-ai/claude-code",
         "codex": "@openai/codex",
         "dsh": "@deepseek-ai/dsh",          # DeepSeek Harness one-shot headless runner (`dsh --profile headless`)
@@ -470,7 +490,8 @@ def log_to_panel(status: str, summary: str, pr_url: str = "") -> None:
 
 # ---------------------------------------------------------------- main
 def main() -> int:
-    log(f"event={EVENT_NAME} issue=#{N} runner={RUNNER} trigger={TRIGGER}")
+    log(f"event={EVENT_NAME} issue=#{N} runner={RUNNER}"
+        f"{' (issue override)' if _runner_override() else ' (repo var/default)'} trigger={TRIGGER}")
     reaction_id, reaction_target = add_reaction("eyes")
 
     try:
