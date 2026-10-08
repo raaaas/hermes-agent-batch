@@ -1,0 +1,14 @@
+{
+  "issue_number": 8,
+  "history": [
+    {
+      "role": "user",
+      "content": "runner: opencode — test: add RUNNER_MARKER_TEST.txt\n\nCreate a file named RUNNER_MARKER_TEST.txt at the repo root whose content is exactly: marker dispatch ok. Do nothing else."
+    },
+    {
+      "role": "assistant",
+      "content": "(agent produced no usable text output — see Actions run log)"
+    }
+  ],
+  "updated_at": "2026-10-08T08:30:18"
+}
