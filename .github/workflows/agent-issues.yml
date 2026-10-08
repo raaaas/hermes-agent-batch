@@ -78,11 +78,14 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Configure opencode → kilo free (direct, keyless)
-        # Brain = kilo free tier, DIRECT api.kilo.ai — no relay, no VPS, no
-        # local infra in the path. Keyless: 200 req/h per egress IP.
+      - name: Configure opencode free gateway (opencode runner only)
+        # OPT-IN: only runs when AGENT_BATCH_RUNNER is explicitly set to
+        # 'opencode'. cline/kilo/claude-code/codex/dsh never read this file —
+        # they use their own auth (BYOK via the *_API_KEY secrets below).
+        # Points opencode at a keyless free pool (api.kilo.ai gateway).
         # Set the model via the AGENT_BATCH_MODEL repo variable,
-        # e.g. kilo/stepfun/step-3.7-flash:free
+        # e.g. stepfun/step-3.7-flash:free
+        if: vars.AGENT_BATCH_RUNNER == 'opencode'
         run: |
           mkdir -p ~/.config/opencode
           cat > ~/.config/opencode/opencode.json <<'EOF'

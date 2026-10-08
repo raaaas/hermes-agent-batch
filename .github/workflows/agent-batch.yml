@@ -1,7 +1,9 @@
 name: Agent Batch — parallel AI tasks
 
-# لیست تسک می‌گیری → هر تسک یه ایجنت مستقل opencode می‌گیره،
+# لیست تسک می‌گیری → هر تسک یه ایجنت مستقل با CLI دلخواه (runner) می‌گیره،
 # هر کدوم روی یه branch جدا کار می‌کنه و آخرش PR باز می‌کنه.
+# Runner دلخواه از dropdown: cline (پیش‌فرض) | opencode | kilo | claude-code | codex | dsh
+# — هم مدل رایگان، هم بیار کلید خودت (BYOK) رو انتخاب کن.
 # matrix یعنی همه همزمان. Context (فایل CONTEXT.md روی branch) به هر
 # ایجنت داده می‌شه تا حافظه‌ی پروژه رو داشته باشه.
 
@@ -12,15 +14,26 @@ on:
         description: 'Tasks, one per line'
         required: true
         type: string
-      context:
-        description: 'Project context / memory for agents (optional)'
+      runner:
+        description: 'Coding agent CLI'
+        required: false
+        default: 'cline'
+        type: choice
+        options: [cline, opencode, kilo, claude-code, codex, dsh]
+      provider:
+        description: 'BYOK provider id for cline (openrouter/anthropic/openai/…, empty = default)'
         required: false
         default: ''
         type: string
       model:
-        description: 'Model (provider/model)'
+        description: 'Model (provider/model; empty = runner default)'
         required: false
-        default: 'kilo/stepfun/step-3.7-flash:free'
+        default: ''
+        type: string
+      context:
+        description: 'Project context / memory for agents (optional)'
+        required: false
+        default: ''
         type: string
       base_branch:
         description: 'Branch to fork from'
@@ -86,14 +99,25 @@ jobs:
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" commit -m "chore: add agent context" 2>/dev/null || true
           git push origin ${{ matrix.branch }} 2>/dev/null || true
 
-      - name: Install opencode
+      - name: Install runner CLI
+        env:
+          RUNNER: ${{ github.event.inputs.runner }}
         run: |
-          npm install -g opencode-ai@1.18.12
-          opencode --version
+          case "$RUNNER" in
+            cline)        pkg=cline ;;
+            opencode)     pkg=opencode-ai@1.18.12 ;;
+            kilo)         pkg=@kilocode/cli ;;
+            claude-code)  pkg=@anthropic-ai/claude-code ;;
+            codex)        pkg=@openai/codex ;;
+            dsh)          pkg=@deepseek-ai/dsh ;;
+            *)            echo "unknown runner $RUNNER"; exit 1 ;;
+          esac
+          npm install -g "$pkg"
 
-      - name: Configure opencode → kilo free (direct, keyless)
-        # Brain = kilo free tier, DIRECT api.kilo.ai — no relay, no VPS, no
-        # local infra in the path. Keyless: 200 req/h per egress IP.
+      - name: Configure opencode free gateway (opencode only)
+        # ONLY when the chosen runner is opencode: points it at a keyless free
+        # pool. Any other runner ignores this file entirely.
+        if: github.event.inputs.runner == 'opencode'
         run: |
           mkdir -p ~/.config/opencode
           cat > ~/.config/opencode/opencode.json <<'EOF'
@@ -101,13 +125,13 @@ jobs:
             "provider": {
               "kilo": {
                 "npm": "@ai-sdk/openai-compatible",
-                "name": "Kilo Free (direct, keyless)",
+                "name": "Free (direct, keyless)",
                 "options": {"baseURL": "https://api.kilo.ai/api/gateway/v1"},
                 "models": {
                   "poolside/laguna-s-2.1:free": {"name": "Laguna S 2.1 (free)"},
-                  "stepfun/step-3.7-flash:free": {"name": "Stepfun 3.7 Flash (free)"},
-                  "tencent/hy3:free": {"name": "Tencent Hy3 (free)"},
-                  "kilo-auto/free": {"name": "Kilo Auto Free"}
+                  "stepfun/step-3.7-flash:free": {"name": "Step 3.7 Flash (free)"},
+                  "tencent/hy3:free": {"name": "Hy3 (free)"},
+                  "kilo-auto/free": {"name": "Auto Free"}
                 }
               }
             }
@@ -117,9 +141,42 @@ jobs:
       - name: Run agent
         env:
           GH_TOKEN: ${{ secrets.GH_PAT || github.token }}
+          RUNNER: ${{ github.event.inputs.runner }}
+          TASK: ${{ matrix.task }}
+          MODEL: ${{ github.event.inputs.model }}
+          PROVIDER: ${{ github.event.inputs.provider }}
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_BASE_URL: ${{ secrets.DEEPSEEK_BASE_URL }}
         run: |
-          opencode run --auto --model ${{ github.event.inputs.model }} \
-            "${{ matrix.task }}"
+          case "$RUNNER" in
+            cline)
+              ARGS=(--auto-approve true)
+              [ -n "$PROVIDER" ] && ARGS+=(--provider "$PROVIDER")
+              [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
+              cline "${ARGS[@]}" --timeout 5400 "$TASK" ;;
+            opencode)
+              ARGS=(run --auto --print-logs --model "${MODEL:-kilo/kilo-auto/free}")
+              opencode "${ARGS[@]}" "$TASK" ;;
+            kilo)
+              ARGS=(run --auto --print-logs)
+              [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
+              kilo "${ARGS[@]}" "$TASK" ;;
+            claude-code)
+              ARGS=(-p "$TASK" --output-format text --dangerously-skip-permissions)
+              [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
+              claude "${ARGS[@]}" ;;
+            codex)
+              ARGS=(exec --full-auto "$TASK")
+              [ -n "$MODEL" ] && ARGS+=(--model "$MODEL")
+              codex "${ARGS[@]}" ;;
+            dsh)
+              dsh --profile headless "$TASK" ;;
+          esac
         timeout-minutes: 110
 
       - name: Commit and push
@@ -132,7 +189,7 @@ jobs:
             echo "No changes — skipping commit."
             exit 0
           fi
-          git commit -m "agent: ${{ matrix.task }}"
+          git commit -m "agent (${{ github.event.inputs.runner }}): ${{ matrix.task }}"
           git push origin ${{ matrix.branch }}
           echo "committed=true" >> "$GITHUB_OUTPUT"
 
@@ -144,5 +201,5 @@ jobs:
           gh pr create \
             --base ${{ github.event.inputs.base_branch }} \
             --head ${{ matrix.branch }} \
-            --title "🤖 Agent [${{ matrix.idx }}]: ${{ matrix.task }}" \
-            --body "Auto-generated by the Agent Batch workflow." || true
+            --title "🤖 Agent [${{ matrix.idx }}] (${{ github.event.inputs.runner }}): ${{ matrix.task }}" \
+            --body "Auto-generated by the Agent Batch workflow — runner: \`${{ github.event.inputs.runner }}\`." || true
